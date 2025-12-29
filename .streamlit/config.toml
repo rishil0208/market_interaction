@@ -1,6 +1,18 @@
 [theme]
-primaryColor="#00f900"
-backgroundColor="#0A0A0A"
-secondaryBackgroundColor="#1E1E1E"
+# The preset dark theme of Streamlit
+base="dark"
+
+# Primary accent color for interactive elements
+primaryColor="#00FF00"
+
+# Background color for the main content area
+backgroundColor="#0E1117"
+
+# Background color for sidebar and most interactive widgets
+secondaryBackgroundColor="#1C1F26"
+
+# Color for most text
 textColor="#FAFAFA"
+
+# Font family for all text in the app
 font="sans serif"

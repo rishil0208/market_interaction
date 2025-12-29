@@ -1,10 +1,11 @@
+yfinance
 streamlit
 streamlit-autorefresh
-yfinance
+torch
+plotly
+networkx
 pandas
 numpy
-scipy
-networkx
-plotly
-torch
+ta
+textblob
 matplotlib
