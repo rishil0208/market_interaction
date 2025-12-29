@@ -1,92 +1,117 @@
 """
-Data Engine for fetching and processing stock data.
+Data Engine for fetching and processing REAL-TIME stock data.
 
-Handles data retrieval from yfinance and feature engineering,
-including individual and relational features.
+Handles live, intraday data retrieval from yfinance and feature engineering
+for the high-frequency interaction model.
 """
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import streamlit as st
 from typing import List, Tuple
 
-def fetch_data(tickers: List[str], period: str = "1y") -> pd.DataFrame:
+# Use Streamlit's caching to prevent re-fetching data too frequently.
+# The data will be cached for 60 seconds (ttl=60).
+@st.cache_data(ttl=60)
+def fetch_live_data(tickers: List[str]) -> pd.DataFrame:
     """
-    Fetches historical daily price data for a list of tickers.
+    Fetches historical intraday data (1-minute interval) for a list of tickers
+    for the last 5 days.
 
     Args:
         tickers (List[str]): List of stock tickers.
-        period (str): The time period for which to fetch data (e.g., "1y", "6mo").
 
     Returns:
-        pd.DataFrame: A DataFrame with 'Adj Close' prices for each ticker.
+        pd.DataFrame: A DataFrame with 'Close' prices for each ticker.
+                      Returns None if data fetching fails.
     """
-    data = yf.download(tickers, period=period, auto_adjust=True)['Close']
-    data = data.dropna(axis=1, how='any') # Drop columns with any NaNs
-    return data
+    try:
+        data = yf.download(
+            tickers,
+            period="5d",
+            interval="1m",
+            auto_adjust=True,
+            progress=False  # Suppress yfinance progress bar in logs
+        )['Close']
+        
+        # Forward-fill NaNs which can occur during market halts or for illiquid stocks
+        data = data.ffill()
+        # Then back-fill any remaining NaNs at the beginning of the series
+        data = data.bfill()
 
-def calculate_features(data: pd.DataFrame, lookback: int) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        if data.empty:
+            st.warning("yfinance returned an empty dataframe. Markets may be closed.")
+            return None
+
+        return data
+    except Exception as e:
+        st.error(f"Failed to fetch live data from yfinance: {e}")
+        return None
+
+def get_live_features(data: pd.DataFrame, lookback: int) -> pd.DataFrame:
     """
-    Calculates individual stock features: Log Returns, Volatility, and RSI.
+    Calculates dynamic features from the last N minutes of data.
+    These features capture short-term momentum and volatility.
 
     Args:
-        data (pd.DataFrame): DataFrame of historical prices.
-        lookback (int): The rolling window size for calculations.
+        data (pd.DataFrame): DataFrame of 1-minute prices.
+        lookback (int): The rolling window in minutes for calculations.
 
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-            - Log Returns
-            - Rolling Volatility
-            - Relative Strength Index (RSI)
+        pd.DataFrame: A dataframe with the latest features for each ticker.
     """
-    # 1. Log Returns: Captures momentum
-    log_returns = np.log(data / data.shift(1)).dropna()
+    recent_data = data.tail(lookback)
+    
+    # 1. Log Returns (captures minute-to-minute change)
+    log_returns = np.log(recent_data / recent_data.shift(1))
 
-    # 2. Rolling Volatility: Captures risk/uncertainty
-    volatility = log_returns.rolling(window=lookback).std().dropna()
+    # 2. Short-Term Momentum (total return over the lookback period)
+    momentum = (recent_data.iloc[-1] / recent_data.iloc[0]) - 1
 
-    # 3. Relative Strength Index (RSI): Captures overbought/oversold conditions
-    delta = data.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=lookback).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=lookback).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    rsi = rsi.dropna()
+    # 3. Short-Term Volatility (std dev of 1-min returns)
+    volatility = log_returns.std()
 
-    # Align dataframes to the same index
-    last_common_date = min(log_returns.index[-1], volatility.index[-1], rsi.index[-1])
-    log_returns = log_returns.loc[:last_common_date]
-    volatility = volatility.loc[:last_common_date]
-    rsi = rsi.loc[:last_common_date]
+    feature_df = pd.DataFrame({
+        'Momentum_60m': momentum,
+        'Volatility_60m': volatility,
+        'Last_1m_Return': log_returns.iloc[-1]
+    })
+    
+    # Handle potential NaNs/Infs from calculations
+    feature_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    feature_df.fillna(0, inplace=True)
 
-    return log_returns, volatility, rsi
+    return feature_df
 
-def get_adjacency_matrix(data: pd.DataFrame, lookback: int, threshold: float) -> pd.DataFrame:
+
+def get_live_correlation_matrix(data: pd.DataFrame, lookback: int, threshold: float) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Creates a dynamic adjacency matrix based on rolling correlation.
-    This matrix represents the "Market Interaction Graph," where an edge
-    exists if the correlation between two stocks exceeds a threshold.
-
-    This directly satisfies the "Interaction" and "Dynamic Graph" requirements.
+    Creates a dynamic adjacency and weighted correlation matrix based on
+    the most recent N minutes of 1-minute log returns.
 
     Args:
-        data (pd.DataFrame): DataFrame of historical prices.
-        lookback (int): Rolling window for correlation calculation.
+        data (pd.DataFrame): DataFrame of 1-minute prices.
+        lookback (int): Rolling window in minutes for correlation.
         threshold (float): Correlation value above which an edge is created.
 
     Returns:
-        pd.DataFrame: A square matrix where A_ij = 1 if corr(i, j) > threshold, else 0.
+        Tuple[pd.DataFrame, pd.DataFrame]:
+            - correlation_matrix: Full matrix of recent correlation values.
+            - adjacency_matrix: A square matrix where A_ij = 1 if corr(i, j) > threshold.
     """
-    # Calculate rolling correlation on log returns for more stable relationships
-    log_returns = np.log(data / data.shift(1))
-    rolling_corr = log_returns.rolling(window=lookback).corr().unstack()
+    recent_data = data.tail(lookback)
+    log_returns = np.log(recent_data / recent_data.shift(1)).dropna()
     
-    # Get the most recent correlation matrix
-    latest_corr = rolling_corr.iloc[-1].unstack()
+    # Calculate the correlation matrix on the most recent data
+    correlation_matrix = log_returns.corr()
     
     # Create adjacency matrix based on the threshold
-    adjacency = (latest_corr > threshold).astype(int)
+    adjacency_matrix = (correlation_matrix.abs() > threshold).astype(int)
     
-    # Ensure the diagonal is 0 (a stock has no self-loop in this context)
-    np.fill_diagonal(adjacency.values, 0)
+    # Ensure the diagonal is 0 (a stock has no self-loop)
+    np.fill_diagonal(adjacency_matrix.values, 0)
     
-    return adjacency
+    # Replace NaNs in correlation matrix with 0
+    correlation_matrix.fillna(0, inplace=True)
+    
+    return correlation_matrix, adjacency_matrix

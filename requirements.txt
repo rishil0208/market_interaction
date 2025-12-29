@@ -1,4 +1,5 @@
 streamlit
+streamlit-autorefresh
 yfinance
 pandas
 numpy
@@ -6,3 +7,4 @@ scipy
 networkx
 plotly
 torch
+matplotlib

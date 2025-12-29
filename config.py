@@ -1,70 +1,58 @@
 """
-Configuration file for the Market Interaction-Based Performance Predictor.
+Configuration file for the Real-Time Market Interaction Monitor.
 """
 
 # --- Ticker Basket ---
-# A curated list of 12 highly interconnected tech companies.
+# A curated list of 10 volatile tech stocks for intraday monitoring.
 TICKERS = [
+    'NVDA',  # NVIDIA
+    'AMD',   # Advanced Micro Devices
     'AAPL',  # Apple
     'MSFT',  # Microsoft
     'GOOGL', # Alphabet
-    'AMZN',  # Amazon
-    'NVDA',  # NVIDIA
     'META',  # Meta Platforms
-    'TSM',   # Taiwan Semiconductor
-    'AVGO',  # Broadcom
-    'ORCL',  # Oracle
-    'CRM',   # Salesforce
-    'AMD',   # Advanced Micro Devices
-    'QCOM',  # Qualcomm
+    'TSLA',  # Tesla
+    'AMZN',  # Amazon
+    'INTC',  # Intel
+    'QCOM'   # Qualcomm
 ]
 
 # --- Modeling Hyperparameters ---
-# Lookback window for calculating rolling features and correlations.
-LOOKBACK_DAYS = 30
+# Lookback window in minutes for calculating rolling features and correlations.
+LOOKBACK_MINUTES = 60
 
-# Correlation threshold for establishing an "edge" in the interaction graph.
-# A value of 0.6 means a strong positive linear relationship is required.
-CORRELATION_THRESHOLD = 0.6
+# Correlation threshold for establishing a "live" edge in the interaction graph.
+CORRELATION_THRESHOLD = 0.5 # Lowered for intraday data as correlations are weaker
 
 # --- UI & Theming ---
-# Custom CSS for a professional, modern look.
-# Inspired by financial terminals and cyberpunk aesthetics.
+# Custom CSS for a professional, "trading floor" look.
 CUSTOM_CSS = """
     <style>
         /* Main page background */
         .main {
             background-color: #0A0A0A;
         }
-        /* Bigger, bolder titles */
-        h1 {
-            font-size: 2.5em;
-            font-weight: 700;
-            letter-spacing: -1px;
-            border-bottom: 2px solid #00f900;
-            padding-bottom: 10px;
-        }
-        /* Custom metric card styling */
+        /* Custom metric card styling for the top ticker tape */
         .stMetric {
             background-color: #1E1E1E;
             border-radius: 10px;
-            padding: 15px;
+            padding: 10px;
             border: 1px solid #333;
-        }
-        /* Green/Red metric delta colors */
-        .stMetric .st-ax {
-            color: #FAFAFA !important;
         }
         /* Center align metric labels */
         .stMetric-label {
-             text-align: center;
+             font-size: 0.9em;
              font-weight: bold;
              text-transform: uppercase;
         }
-        /* Center align metric values */
+        /* Style the metric values */
         .stMetric-value {
-             text-align: center;
-             font-size: 2.2em !important;
+             font-size: 1.5em !important;
+        }
+        /* Style the metric delta (price change) */
+        .stMetric-delta {
+            font-size: 1.1em !important;
+            font-weight: bold;
         }
     </style>
 """
