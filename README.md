@@ -9,14 +9,6 @@
 
 **A portfolio-grade financial analytics platform that predicts short-term stock performance by modeling the market as a dynamic graph and leveraging a Graph Attention Network (GAT).**
 
-<br>
-
-> **Note:** Please add a GIF of the running application here! A GIF is the best way to showcase this project on your portfolio.
-
-<p align="center">
-  <!-- ![DEMO_GIF_PLACEHOLDER](link_to_your_gif.gif) -->
-  *Your GIF Here*
-</p>
 
 ## 📋 Project Overview
 
